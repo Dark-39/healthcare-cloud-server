@@ -8,16 +8,13 @@ app = Flask(__name__)
 try:
     model = joblib.load('cloud_model.joblib')
     scaler = joblib.load('scaler.joblib')
-    print("Cloud model and scaler loaded successfully.")
+    training_columns = joblib.load("training_columns.joblib")
+    print("Cloud model, scaler, and columns loaded successfully.")
 except Exception as e:
     print(f"Error loading model files: {e}")
 
 # This list MUST exactly match the columns from train_models.py
-training_columns = [
-    'age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 
-    'thalach', 'exang', 'oldpeak', 'slope', 'ca', 
-    'thal_1', 'thal_2', 'thal_3'
-]
+
 
 @app.route('/')
 def home():
@@ -28,6 +25,13 @@ def analyze():
     try:
         patient_data = request.get_json()
         print(f"Received data for analysis: {patient_data}")
+
+        required = ['age','sex','cp','trestbps','chol','fbs','restecg',
+            'thalach','exang','oldpeak','slope','ca','thal']
+        missing = [f for f in required if f not in patient_data]
+        if missing:
+            return jsonify({"status": "error", "message": f"Missing fields: {missing}"}), 400
+
         
         df = pd.DataFrame([patient_data])
         
@@ -49,7 +53,13 @@ def analyze():
         
         print(f"Cloud analysis complete. Prediction: {result}, Confidence: {confidence:.4f}")
         
-        return jsonify({"status": "success", "cloud_prediction": result}), 200
+        risk = "high" if result == 1 else "low"
+        return jsonify({
+            "status": "success",
+            "risk_level": risk,
+            "confidence": round(confidence, 4)
+        }), 200
+
 
     except Exception as e:
         print(f"Error during analysis: {e}")
